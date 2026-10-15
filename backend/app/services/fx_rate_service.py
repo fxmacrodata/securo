@@ -12,11 +12,24 @@ from app.core.app_clock import app_today
 from app.core.config import get_settings
 from app.models.fx_rate import FxRate
 from app.models.user import User
+from app.providers.base import FxRateProvider
+from app.providers.fxmacrodata import FxMacroDataProvider
 from app.providers.openexchangerates import OpenExchangeRatesProvider
 
 logger = logging.getLogger(__name__)
 
-_provider = OpenExchangeRatesProvider()
+
+def _build_provider() -> FxRateProvider:
+    """Return the FX rate provider selected by `fx_rate_provider`."""
+    name = get_settings().fx_rate_provider
+    if name == "fxmacrodata":
+        return FxMacroDataProvider()
+    if name != "openexchangerates":
+        logger.warning("Unknown fx_rate_provider %r, using openexchangerates", name)
+    return OpenExchangeRatesProvider()
+
+
+_provider = _build_provider()
 
 
 async def sync_rates(

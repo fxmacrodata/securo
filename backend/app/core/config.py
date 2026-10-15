@@ -68,7 +68,9 @@ class Settings(BaseSettings):
     default_currency: str = "USD"  # fallback currency when user preference is unavailable
 
     # FX Rates
+    fx_rate_provider: str = "openexchangerates"  # "openexchangerates" or "fxmacrodata"
     openexchangerates_app_id: str = ""
+    fxmacrodata_api_key: str = ""
     supported_currencies: str = "USD,EUR,GBP,BRL,CAD,AUD,CHF,ARS,JPY,MXN,INR,SEK,DKK,NOK,PLN,CZK,HUF,RON,CRC,IDR,COP,CLP,DOP,KZT,RUB,GTQ,PHP,UAH,NZD,VND,SGD,AZN,TRY,PKR,MDL,AED,THB,EGP,MYR,CNY,SAR,QAR,JMD,RSD,MKD"  # comma-separated list
     fx_sync_mode: str = "on_demand"  # "on_demand" or "scheduled"
 

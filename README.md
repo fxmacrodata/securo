@@ -180,6 +180,15 @@ OPENEXCHANGERATES_APP_ID=your-app-id
 
 Rates are fetched on-demand when foreign-currency transactions are created. Without a key, cross-currency amounts default to a 1:1 fallback rate with a visual warning.
 
+To use central-bank reference rates from [FXMacroData](https://fxmacrodata.com/?utm_source=github&utm_medium=referral&utm_campaign=securo&utm_content=readme) instead, select it as the provider and add an API key:
+
+```
+FX_RATE_PROVIDER=fxmacrodata
+FXMACRODATA_API_KEY=your-api-key
+```
+
+FXMacroData covers AUD, BRL, CAD, CHF, CNH, CNY, DKK, EUR, GBP, HUF, ILS, JPY, KRW, MYR, NGN, NOK, NZD, PEN, SEK, THB and TWD against USD; other currencies in `SUPPORTED_CURRENCIES` are left to the closest stored rate or the 1:1 fallback.
+
 ## Timezone
 
 Balances, budgets, due dates and recurring transactions turn over at midnight in the application timezone. Set it once in Admin Settings → Date and time; a workspace that keeps its books somewhere else can pick its own timezone in Workspace settings. Without a saved value the application follows `TZ` from the environment, then the host timezone, then UTC, so an existing installation keeps behaving as before until someone changes it.

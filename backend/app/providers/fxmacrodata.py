@@ -21,9 +21,12 @@ FXMACRODATA_CURRENCIES = frozenset(
     }
 )
 
-# Reference rates are only published on business days. A week back covers a
-# weekend plus a public holiday when resolving the rate for a given date.
-LOOKBACK_DAYS = 7
+# Reference rates are only published on business days, and some publishers
+# pause for longer holidays. Rows come back most recent first, so a year-wide
+# window with limit=1 returns the latest rate on or before the requested date
+# in one request. The window has to be explicit: without start_date the API
+# defaults to the last 365 days counted from today, not from end_date.
+LOOKBACK_DAYS = 366
 
 
 class FxMacroDataProvider(FxRateProvider):
@@ -64,9 +67,20 @@ class FxMacroDataProvider(FxRateProvider):
         headers = {"X-API-Key": api_key}
         async with httpx.AsyncClient(timeout=30, headers=headers) as client:
             results = await asyncio.gather(
-                *(self._fetch_one(client, code, params) for code in currencies)
+                *(self._fetch_one(client, code, params) for code in currencies),
+                return_exceptions=True,
             )
-        return {code: rate for code, rate in zip(currencies, results) if rate is not None}
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors and len(errors) == len(results):
+            raise errors[0]
+        rates: dict[str, Decimal] = {}
+        for code, result in zip(currencies, results):
+            # One failing pair should not discard the rates that did come back.
+            if isinstance(result, Exception):
+                logger.warning("FXMacroData USD/%s request failed: %s", code, result)
+            elif result is not None:
+                rates[code] = result
+        return rates
 
     async def _fetch_one(
         self, client: httpx.AsyncClient, code: str, params: dict

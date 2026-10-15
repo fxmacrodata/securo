@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.providers.fxmacrodata import FxMacroDataProvider
@@ -82,10 +83,60 @@ async def test_fetch_historical_uses_latest_row_on_or_before_date():
 
     assert rates == {"JPY": Decimal("151.25")}
     assert client.get.call_args.kwargs["params"] == {
-        "start_date": "2026-10-04",
+        "start_date": "2025-10-10",
         "end_date": "2026-10-11",
         "limit": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_fetch_historical_reaches_past_a_long_publication_gap():
+    # Nothing published in the three weeks before the target date; the latest
+    # earlier row is still found because the window spans a full year.
+    client = _mock_client({"nzd": [{"date": "2026-01-02", "val": 1.7712}]})
+
+    with patch("app.providers.fxmacrodata.get_settings") as mock_settings, \
+         patch("app.providers.fxmacrodata.httpx.AsyncClient", return_value=client):
+        _settings(mock_settings, "USD,NZD")
+        rates = await FxMacroDataProvider().fetch_historical(date(2026, 1, 23))
+
+    assert rates == {"NZD": Decimal("1.7712")}
+    assert client.get.call_args.kwargs["params"]["start_date"] == "2025-01-22"
+
+
+@pytest.mark.asyncio
+async def test_one_failing_pair_keeps_the_others():
+    client = _mock_client({"sek": [{"date": "2026-10-14", "val": 9.4410}]})
+    ok_get = client.get.side_effect
+
+    async def _get(url, params=None):
+        if url.endswith("/nok"):
+            raise httpx.HTTPStatusError("503", request=MagicMock(), response=MagicMock())
+        return await ok_get(url, params=params)
+
+    client.get = AsyncMock(side_effect=_get)
+
+    with patch("app.providers.fxmacrodata.get_settings") as mock_settings, \
+         patch("app.providers.fxmacrodata.httpx.AsyncClient", return_value=client):
+        _settings(mock_settings, "NOK,SEK")
+        rates = await FxMacroDataProvider().fetch_latest()
+
+    assert rates == {"SEK": Decimal("9.4410")}
+
+
+@pytest.mark.asyncio
+async def test_all_pairs_failing_raises():
+    async def _get(url, params=None):
+        raise httpx.ConnectError("unreachable")
+
+    client = _mock_client({})
+    client.get = AsyncMock(side_effect=_get)
+
+    with patch("app.providers.fxmacrodata.get_settings") as mock_settings, \
+         patch("app.providers.fxmacrodata.httpx.AsyncClient", return_value=client):
+        _settings(mock_settings, "NOK,SEK")
+        with pytest.raises(httpx.ConnectError):
+            await FxMacroDataProvider().fetch_latest()
 
 
 @pytest.mark.asyncio
